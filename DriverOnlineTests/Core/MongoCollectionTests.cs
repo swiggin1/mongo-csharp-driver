@@ -167,6 +167,49 @@ namespace MongoDB.DriverOnlineTests {
             Assert.AreEqual(2, result["y"].AsInt32);
         }
 
+        private class Place {
+            public ObjectId Id;
+            public double[] Location;
+            public string Name;
+            public string Type;
+        }
+
+        [Test]
+        public void TestGeoNear() {
+            if (collection.Exists()) { collection.Drop(); }
+            collection.Insert(new Place { Location = new[] { 1.0, 1.0 }, Name = "One", Type = "Museum" });
+            collection.Insert(new Place { Location = new[] { 1.0, 2.0 }, Name = "Two", Type = "Coffee" });
+            collection.Insert(new Place { Location = new[] { 1.0, 3.0 }, Name = "Three", Type = "Library" });
+            collection.Insert(new Place { Location = new[] { 1.0, 4.0 }, Name = "Four", Type = "Museum" });
+            collection.Insert(new Place { Location = new[] { 1.0, 5.0 }, Name = "Five", Type = "Coffee" });
+            collection.CreateIndex(IndexKeys.GeoSpatial("Location"));
+
+            var options = GeoNearOptions
+                .SetDistanceMultiplier(1)
+                .SetMaxDistance(100);
+            var result = collection.GeoNearAs<Place>(Query.Null, 0.0, 0.0, 100, options);
+            Assert.IsTrue(result.Ok);
+            Assert.AreEqual("onlinetests.testcollection", result.Namespace);
+            Assert.IsTrue(result.Stats.AverageDistance >= 0.0);
+            Assert.IsTrue(result.Stats.BTreeLocations >= 0);
+            Assert.IsTrue(result.Stats.Duration >= TimeSpan.Zero);
+            Assert.IsTrue(result.Stats.MaxDistance >= 0.0);
+            Assert.IsTrue(result.Stats.NumberScanned >= 0);
+            Assert.IsTrue(result.Stats.ObjectsLoaded >= 0);
+            Assert.AreEqual(5, result.Hits.Count);
+            Assert.IsTrue(result.Hits[0].Distance > 1.0);
+            Assert.AreEqual(1.0, result.Hits[0].RawDocument["Location"].AsBsonArray[0].AsDouble);
+            Assert.AreEqual(1.0, result.Hits[0].RawDocument["Location"].AsBsonArray[1].AsDouble);
+            Assert.AreEqual("One", result.Hits[0].RawDocument["Name"].AsString);
+            Assert.AreEqual("Museum", result.Hits[0].RawDocument["Type"].AsString);
+
+            var place = result.Hits[1].Document;
+            Assert.AreEqual(1.0, place.Location[0]);
+            Assert.AreEqual(2.0, place.Location[1]);
+            Assert.AreEqual("Two", place.Name);
+            Assert.AreEqual("Coffee", place.Type);
+        }
+
         [Test]
         public void TestGetIndexes() {
             collection.DropAllIndexes();
@@ -279,47 +322,6 @@ namespace MongoDB.DriverOnlineTests {
             Assert.AreEqual(3, result.Count());
             CollectionAssert.AreEqual(new[] { 1, 2, 3 }, result);
         }
-
-        [Test]
-        public void TestGeoNear()
-        {
-            collection.RemoveAll();
-            collection.DropAllIndexes();
-            collection.EnsureIndex(IndexKeys.GeoSpatial("Coordinates"));
-
-            collection.Insert(new BsonDocument { {"Location", "Washington DC"}, { "x", 4 }, { "y", 2 }, { "Coordinates", new BsonDocument { { "Longitude", 13 }, { "Latitude", 18 } } } });
-            collection.Insert(new BsonDocument { { "Location", "Washington DC" }, { "x", 2 }, { "y", 2 }, { "Coordinates", new BsonDocument { { "Longitude", 13 }, { "Latitude", 18 } } } });
-            collection.Insert(new BsonDocument { { "Location", "Washington DC" }, { "x", 3 }, { "y", 2 }, { "Coordinates", new BsonDocument { { "Longitude", 13 }, { "Latitude", 18 } } } });
-            collection.Insert(new BsonDocument { { "Location", "Washington DC" }, { "x", 1 }, { "y", 2 }, { "Coordinates", new BsonDocument { { "Longitude", 13 }, { "Latitude", 18 } } } });
-
-            var geoNearResult = collection.GeoNear<BsonDocument>(Query.Null, 0, 0, 10);
-
-            Assert.IsNotNull(geoNearResult);
-
-            Assert.AreEqual("onlinetests.testcollection", geoNearResult.NameSpace);
-            
-            Assert.AreEqual("1100000000000000000000000000000000000000000000000000", geoNearResult.Near);
-
-            Assert.AreEqual(4, geoNearResult.Stats.objectsLoaded);
-            Assert.AreNotEqual(-1, geoNearResult.Stats.time);
-            Assert.AreNotEqual(0, geoNearResult.Stats.btreelocs);
-            Assert.AreNotEqual(0, geoNearResult.Stats.nscanned);
-            Assert.AreNotEqual(0, geoNearResult.Stats.avgDistance);
-            Assert.AreNotEqual(0, geoNearResult.Stats.maxDistance);
-
-            Assert.IsNotNull(geoNearResult.Results);
-            Assert.AreEqual(4, geoNearResult.Results.Count());
-
-            Assert.AreEqual(22.203600417328694, geoNearResult.Results.First().Distance);
-            Assert.AreEqual("Washington DC", geoNearResult.Results.First().Value.GetValue("Location").AsString);
-
-
-            //var result = collection.FindAll().SetSortOrder("x").SetLimit(3).Select(x => x["x"].AsInt32);
-            //Assert.AreEqual(3, result.Count());
-            //CollectionAssert.AreEqual(new[] { 1, 2, 3 }, result);
-        }
-
-
 
         [Test]
         public void TestGetStats() {

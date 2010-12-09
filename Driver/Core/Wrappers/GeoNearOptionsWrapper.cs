@@ -17,28 +17,26 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
-using MongoDB.Bson;
+using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 
 namespace MongoDB.Driver {
-    [Serializable]
-    public class FindAndModifyResult : CommandResult {
+    public class GeoNearOptionsWrapper : BaseWrapper, IMongoGeoNearOptions {
         #region constructors
-        public FindAndModifyResult() {
+        public GeoNearOptionsWrapper(
+            Type nominalType,
+            object options
+        )
+            : base(nominalType, options) {
         }
         #endregion
 
-        #region public properties
-        public BsonDocument ModifiedDocument {
-            get { return response["value"].AsBsonDocument; }
-        }
-        #endregion
-
-        #region public methods
-        public T GetModifiedDocument<T>() {
-            return BsonSerializer.Deserialize<T>(ModifiedDocument);
+        #region public static methods
+        public static GeoNearOptionsWrapper Create<T>(
+            T options
+        ) {
+            return new GeoNearOptionsWrapper(typeof(T), options);
         }
         #endregion
     }

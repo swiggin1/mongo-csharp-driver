@@ -14,142 +14,169 @@
 */
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 
-namespace MongoDB.Driver
-{
+namespace MongoDB.Driver {
     [Serializable]
-    public class GeoNearResult<TDocument> : CommandResult
-    {
-        public readonly GeoNearStats Stats;
-        private IEnumerable<Result> _results;
+    public class GeoNearResult<TDocument> : CommandResult {
+        #region private fields
+        private GeoNearHits hits;
+        private GeoNearStats stats;
+        #endregion
 
-        public GeoNearResult()
-        {
-            Stats = new GeoNearStats(this);
+        #region constructors
+        public GeoNearResult() {
         }
+        #endregion
 
-        public string Near
-        {
-            get { return this["near"].AsString; }
-        }
-
-        public string NameSpace
-        {
-            get { return this["ns"].AsString; }
-        }
-
-        public IEnumerable<Result> Results
-        {
-            get
-            {
-                if (_results == null)
-                    _results = _getResults();
-
-                return _results;
-            }
-        }
-
-        private IEnumerable<Result> _getResults()
-        {
-            var resultDocument = this["results"].AsBsonArray;
-
-            return resultDocument.Select(_convertResultDocument).ToList();
-        }
-
-        private static Result _convertResultDocument(BsonValue resultEntry)
-        {
-            var resultEntryDocument = resultEntry.AsBsonDocument;
-
-            //todo: is this the right way to deserialize
-            var distance = resultEntryDocument.GetValue("dis").AsDouble;
-            var objDocument = resultEntryDocument.GetValue("obj").AsBsonDocument;
-            var obj = _deserializeDocument(objDocument);
-
-            return new Result(distance, obj);
-        }
-
-        private static TDocument _deserializeDocument(BsonDocument objDocument)
-        {
-            var buffer = objDocument.ToBson();
-            return BsonSerializer.Deserialize<TDocument>(buffer);
-        }
-
-        #region Nested type: GeoNearStats
-
-        public class GeoNearStats
-        {
-            // todo: Maybe this should just deserialize a Stats object?
-
-            private readonly GeoNearResult<TDocument> _parent;
-            private BsonDocument _statsDocument;
-
-            public GeoNearStats(GeoNearResult<TDocument> parent)
-            {
-                _parent = parent;
-            }
-
-            private BsonDocument StatsDocument
-            {
-                get
-                {
-                    if (_statsDocument == null)
-                        _statsDocument = _parent["stats"].AsBsonDocument;
-
-                    return _statsDocument;
+        #region public properties
+        public GeoNearHits Hits {
+            get {
+                if (hits == null) {
+                    hits = new GeoNearHits(response["results"].AsBsonArray);
                 }
+                return hits;
             }
+        }
 
-            public int objectsLoaded
-            {
-                get { return StatsDocument.GetValue("objectsLoaded").AsInt32; }
-            }
+        public string Namespace {
+            get { return response["ns"].AsString; }
+        }
 
-            public int time
-            {
-                get { return StatsDocument.GetValue("time").AsInt32; }
-            }
-
-            public int btreelocs
-            {
-                get { return StatsDocument.GetValue("btreelocs").AsInt32; }
-            }
-
-            public int nscanned
-            {
-                get { return StatsDocument.GetValue("nscanned").AsInt32; }
-            }
-
-            public Double avgDistance
-            {
-                get { return StatsDocument.GetValue("avgDistance").AsDouble; }
-            }
-
-            public Double maxDistance
-            {
-                get { return StatsDocument.GetValue("maxDistance").AsDouble; }
+        public GeoNearStats Stats {
+            get {
+                if (stats == null) {
+                    stats = new GeoNearStats(response["stats"].AsBsonDocument);
+                }
+                return stats;
             }
         }
 
         #endregion
 
-        #region Nested type: Result
+        #region nested classes
+        public class GeoNearHits : IEnumerable<GeoNearHit> {
+            #region private fields
+            private List<GeoNearHit> hits;
+            #endregion  
 
-        public class Result
-        {
-            public readonly double Distance;
-            public readonly TDocument Value;
-
-            public Result(double distance, TDocument value)
-            {
-                Distance = distance;
-                Value = value;
+            #region constructors
+            public GeoNearHits(
+                BsonArray hits
+            ) {
+                this.hits = hits.Select(h => new GeoNearHit(h.AsBsonDocument)).ToList();
             }
+            #endregion
+
+            #region public properties
+            public int Count {
+                get { return hits.Count; }
+            }
+            #endregion
+
+            #region indexers
+            public GeoNearHit this[
+                int index
+            ] {
+                get {
+                    return hits[index];
+                }
+            }
+            #endregion
+
+            #region public methods
+            public IEnumerator<GeoNearHit> GetEnumerator() {
+                return hits.GetEnumerator();
+            }
+            #endregion
+
+            #region explicit interface implementations
+            IEnumerator IEnumerable.GetEnumerator() {
+                return GetEnumerator();
+            }
+            #endregion
         }
 
+        public class GeoNearHit {
+            #region private fields
+            private BsonDocument hit;
+            #endregion
+
+            #region constructors
+            public GeoNearHit(
+                BsonDocument hit
+            ) {
+                this.hit = hit;
+            }
+            #endregion
+
+            #region public properties
+            public double Distance {
+                get { return hit["dis"].ToDouble(); }
+            }
+
+            public TDocument Document {
+                get {
+                    if (typeof(TDocument) == typeof(BsonDocument)) {
+                        return (TDocument) (object) RawDocument;
+                    } else {
+                        return BsonSerializer.Deserialize<TDocument>(RawDocument);
+                    }
+                }
+            }
+
+            public BsonDocument RawDocument {
+                get { return hit["obj"].AsBsonDocument; }
+            }
+            #endregion
+        }
+
+        public class GeoNearStats {
+            #region private fields
+            private BsonDocument stats;
+            #endregion
+
+            #region constructors
+            public GeoNearStats(
+                BsonDocument stats
+            ) {
+                this.stats = stats;
+            }
+            #endregion
+
+            #region public properties
+            public double AverageDistance {
+                get { return stats["avgDistance"].ToDouble(); }
+            }
+
+            public int BTreeLocations {
+                get { return stats["btreelocs"].ToInt32(); }
+            }
+
+            public TimeSpan Duration {
+                get { return TimeSpan.FromMilliseconds(stats["time"].ToInt32()); }
+            }
+
+            public double MaxDistance {
+                get { return stats["maxDistance"].ToDouble(); }
+            }
+
+            public int NumberScanned {
+                get { return stats["nscanned"].ToInt32(); }
+            }
+
+            public int ObjectsLoaded {
+                get { return stats["objectsLoaded"].ToInt32(); }
+            }
+            #endregion
+        }
         #endregion
     }
 }

@@ -17,28 +17,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization;
-
-namespace MongoDB.Driver {
-    [Serializable]
-    public class FindAndModifyResult : CommandResult {
+namespace MongoDB.Bson.IO {
+    public abstract class BsonReaderBookmark {
         #region constructors
-        public FindAndModifyResult() {
-        }
-        #endregion
-
-        #region public properties
-        public BsonDocument ModifiedDocument {
-            get { return response["value"].AsBsonDocument; }
-        }
-        #endregion
-
-        #region public methods
-        public T GetModifiedDocument<T>() {
-            return BsonSerializer.Deserialize<T>(ModifiedDocument);
+        protected BsonReaderBookmark() {
         }
         #endregion
     }
