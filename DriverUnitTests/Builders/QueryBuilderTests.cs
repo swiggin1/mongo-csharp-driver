@@ -198,6 +198,14 @@ namespace MongoDB.DriverUnitTests.Builders {
         }
 
         [Test]
+        public void TestNear()
+        {
+            var query = Query.NEAR("j", 20, 30);
+            var expected = "{ \"j\" : { \"$near\" : [20, 30] } }";
+            Assert.AreEqual(expected, query.ToJson());
+        }
+
+        [Test]
         public void TestOr() {
             var query = Query.Or(
                 Query.EQ("a", 1),

@@ -140,6 +140,15 @@ namespace MongoDB.Driver.Builders {
             return new QueryConditionList(name, "$ne", value);
         }
 
+        public static QueryConditionList NEAR(
+            string name,
+            double value1,
+            double value2
+        )
+        {
+            return new QueryConditionList(name, "$near", new BsonArray { value1, value2 });
+        }
+
         public static QueryConditionList NotIn(
             string name,
             BsonArray array
